@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minjigles Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .food-img {
+            width: 200px;
+            height: 200px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .food-img:active {
+            transform: scale(0.95);
+        }
+
+        .bounce {
+            animation: bounce 0.5s;
+        }
+
+        .mini-burger {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+            animation: floatUp 1s forwards;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+        }
+
+        @keyframes bounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .food-container {
+            min-height: 220px;
+            position: relative;
+        }
+
+        .stats-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .upgrades-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        #achievement-alert {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideIn 0.5s;
+        }
+
+        .auto-clicker-visual {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            animation: rotate 3s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg) translateX(100px) rotate(0deg); }
+            to { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
+        }
+
+        .progress {
+            height: 25px;
+        }
+
+        .upgrade-card {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: transform 0.2s;
+        }
+
+        .upgrade-card:hover {
+            transform: translateY(-5px);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .sparkle {
+            animation: sparkle 1s infinite;
+        }
+
+        @keyframes sparkle {
+            0% { filter: brightness(100%); }
+            50% { filter: brightness(150%); }
+            100% { filter: brightness(100%); }
+        }
+
+        .level-up {
+            animation: levelUp 1s;
+        }
+
+        @keyframes levelUp {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5); color: #ffd700; }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <div class="container mt-5 text-center">
+        <h1 class="mb-4 text-warning">🍔 Big-Minjigles Simulator 🍔</h1>
+        
+        <div class="stats-container mb-4">
+            <h3>Rank: <span id="rank-name" class="text-info">Newbie Foodie</span></h3>
+            <h4>Total Pounds: <span id="score" class="text-success">0</span></h4>
+            <div class="progress mb-2">
+                <div id="rank-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+            </div>
+            <h4>Pounds per Second: <span id="mps" class="text-primary">0</span></h4>
+            <h5>Pounds per Click: <span id="multiplier" class="text-warning">1</span></h5>
+        </div>
+
+        <div class="food-container mb-4" id="food-container">
+            <img src="https://em-content.zobj.net/thumbs/120/apple/325/hamburger_1f354.png" 
+                 id="food-btn" 
+                 class="food-img"
+                 alt="Click me!">
+        </div>
+
+        <div class="upgrades-container">
+            <h3 class="mb-3 text-warning">Upgrades</h3>
+            <div class="row justify-content-center g-3">
+                <div class="col-md-4">
+                    <div class="upgrade-card">
+                        <h5 class="text-info">Click Power</h5>
+                        <button id="multiplier-upgrade" class="btn btn-success mb-2 w-100">
+                            Upgrade Click Power (Cost: 10)
+                        </button>
+                        <small class="text-muted">Current: <span id="click-power">1</span> per click</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="upgrade-card">
+                        <h5 class="text-info">Auto Clicker</h5>
+                        <button id="auto-clicker" class="btn btn-info mb-2 w-100">
+                            Buy Auto Clicker (Cost: 50)
+                        </button>
+                        <small class="text-muted">Owned: <span id="auto-count">0</span></small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="upgrade-card">
+                        <h5 class="text-info">Auto Speed</h5>
+                        <button id="auto-speed" class="btn btn-warning mb-2 w-100">
+                            Upgrade Speed (Cost: 100)
+                        </button>
+                        <small class="text-muted">Speed: <span id="auto-speed-level">1</span>x</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="achievements mt-4">
+            <div id="achievement-alert" class="alert alert-success d-none" role="alert">
+                Achievement Unlocked! 🎉
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let score = 0;
+        let multiplier = 1;
+        let multiplierCost = 10;
+        let autoClickerCount = 0;
+        let autoClickerCost = 50;
+        let autoSpeedLevel = 1;
+        let autoSpeedCost = 100;
+        let lastSave = Date.now();
+
+        const ranks = [
+            { name: "Newbie Foodie", requirement: 0 },
+            { name: "Snack Enthusiast", requirement: 50 },
+            { name: "Food Explorer", requirement: 200 },
+            { name: "Cuisine Master", requirement: 500 },
+            { name: "Epic Gourmand", requirement: 1000 },
+            { name: "Legendary Food King", requirement: 2500 },
+            { name: "Minjigles God", requirement: 5000 }
+        ];
+
+        const achievements = [
+            { name: "First Bite", requirement: 1, unlocked: false },
+            { name: "Hungry for More", requirement: 100, unlocked: false },
+            { name: "Food Obsessed", requirement: 1000, unlocked: false },
+            { name: "Automation Master", requirement: 5, unlocked: false, type: "autoClicker" },
+            { name: "Speed Demon", requirement: 5, unlocked: false, type: "autoSpeed" }
+        ];
+
+        const elements = {
+            score: document.getElementById('score'),
+            multiplier: document.getElementById('multiplier'),
+            foodBtn: document.getElementById('food-btn'),
+            foodContainer: document.getElementById('food-container'),
+            multiplierUpgradeBtn: document.getElementById('multiplier-upgrade'),
+            autoClickerBtn: document.getElementById('auto-clicker'),
+            autoSpeedBtn: document.getElementById('auto-speed'),
+            rankName: document.getElementById('rank-name'),
+            achievementAlert: document.getElementById('achievement-alert'),
+            mps: document.getElementById('mps'),
+            rankProgress: document.getElementById('rank-progress'),
+            clickPower: document.getElementById('click-power'),
+            autoCount: document.getElementById('auto-count'),
+            autoSpeedLevel: document.getElementById('auto-speed-level')
+        };
+
+        function createAutoClickerVisual() {
+            const visual = document.createElement('img');
+            visual.src = 'https://em-content.zobj.net/thumbs/120/apple/325/hamburger_1f354.png';
+            visual.className = 'auto-clicker-visual';
+            visual.style.transform = `rotate(${Math.random() * 360}deg)`;
+            elements.foodContainer.appendChild(visual);
+
+            setTimeout(() => visual.remove(), 3000);
+        }
+
+        function updateAutoClickerVisuals() {
+            const existingVisuals = document.querySelectorAll('.auto-clicker-visual');
+            if (existingVisuals.length > autoClickerCount) {
+                for (let i = autoClickerCount; i < existingVisuals.length; i++) {
+                    existingVisuals[i].remove();
+                }
+            } else {
+                for (let i = existingVisuals.length; i < autoClickerCount; i++) {
+                    createAutoClickerVisual();
+                }
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num;
+        }
+
+        function createFloatingBurger(x, y) {
+            const burger = document.createElement('img');
+            burger.src = 'https://em-content.zobj.net/thumbs/120/apple/325/hamburger_1f354.png';
+            burger.className = 'mini-burger';
+            burger.style.left = `${x - 15}px`;
+            burger.style.top = `${y - 15}px`;
+            elements.foodContainer.appendChild(burger);
+            setTimeout(() => burger.remove(), 1000);
+        }
+
+        function updateRankProgress() {
+            let currentRank = ranks[0];
+            let nextRank = ranks[1];
+            
+            for (let i = ranks.length - 1; i >= 0; i--) {
+                if (score >= ranks[i].requirement) {
+                    currentRank = ranks[i];
+                    nextRank = ranks[i + 1];
+                    break;
+                }
+            }
+
+            if (nextRank) {
+                const progress = ((score - currentRank.requirement) / (nextRank.requirement - currentRank.requirement)) * 100;
+                elements.rankProgress.style.width = `${progress}%`;
+                elements.rankProgress.setAttribute('aria-valuenow', progress);
+            } else {
+                elements.rankProgress.style.width = '100%';
+            }
+        }
+
+        function addScore(amount) {
+            score += amount;
+            elements.score.textContent = formatNumber(score);
+            checkRank();
+            checkAchievements();
+            updateRankProgress();
+        }
+
+        elements.foodBtn.addEventListener('click', (e) => {
+            addScore(multiplier);
+            createFloatingBurger(e.clientX, e.clientY);
+            
+            elements.foodBtn.classList.remove('bounce');
+            void elements.foodBtn.offsetWidth;
+            elements.foodBtn.classList.add('bounce');
+        });
+
+        elements.multiplierUpgradeBtn.addEventListener('click', () => {
+            if (score >= multiplierCost) {
+                score -= multiplierCost;
+                multiplier++;
+                multiplierCost = Math.floor(multiplierCost * 1.5);
+                
+                elements.score.textContent = formatNumber(score);
+                elements.multiplier.textContent = multiplier;
+                elements.clickPower.textContent = multiplier;
+                elements.multiplierUpgradeBtn.textContent = `Upgrade Click Power (Cost: ${formatNumber(multiplierCost)})`;
+                
+                elements.multiplier.classList.add('sparkle');
+                setTimeout(() => elements.multiplier.classList.remove('sparkle'), 1000);
+            }
+        });
+
+        elements.autoClickerBtn.addEventListener('click', () => {
+            if (score >= autoClickerCost) {
+                score -= autoClickerCost;
+                autoClickerCount++;
+                autoClickerCost = Math.floor(autoClickerCost * 1.8);
+                
+                elements.score.textContent = formatNumber(score);
+                elements.autoClickerBtn.textContent = `Buy Auto Clicker (Cost: ${formatNumber(autoClickerCost)})`;
+                elements.mps.textContent = formatNumber(autoClickerCount * autoSpeedLevel);
+                elements.autoCount.textContent = autoClickerCount;
+                
+                updateAutoClickerVisuals();
+                checkAchievements();
+            }
+        });
+
+        elements.autoSpeedBtn.addEventListener('click', () => {
+            if (score >= autoSpeedCost) {
+                score -= autoSpeedCost;
+                autoSpeedLevel++;
+                autoSpeedCost = Math.floor(autoSpeedCost * 2);
+                
+                elements.score.textContent = formatNumber(score);
+                elements.autoSpeedBtn.textContent = `Upgrade Speed (Cost: ${formatNumber(autoSpeedCost)})`;
+                elements.mps.textContent = formatNumber(autoClickerCount * autoSpeedLevel);
+                elements.autoSpeedLevel.textContent = autoSpeedLevel;
+                
+                checkAchievements();
+            }
+        });
+
+        function checkRank() {
+            for (let i = ranks.length - 1; i >= 0; i--) {
+                if (score >= ranks[i].requirement) {
+                    if (elements.rankName.textContent !== ranks[i].name) {
+                        elements.rankName.textContent = ranks[i].name;
+                        elements.rankName.classList.add('level-up');
+                        setTimeout(() => elements.rankName.classList.remove('level-up'), 1000);
+                    }
+                    break;
+                }
+            }
+        }
+
+        function checkAchievements() {
+            achievements.forEach(achievement => {
+                if (!achievement.unlocked) {
+                    if (achievement.type === "autoClicker" && autoClickerCount >= achievement.requirement) {
+                        achievement.unlocked = true;
+                        showAchievement(achievement.name);
+                    } else if (achievement.type === "autoSpeed" && autoSpeedLevel >= achievement.requirement) {
+                        achievement.unlocked = true;
+                        showAchievement(achievement.name);
+                    } else if (!achievement.type && score >= achievement.requirement) {
+                        achievement.unlocked = true;
+                        showAchievement(achievement.name);
+                    }
+                }
+            });
+        }
+
+        function showAchievement(achievementName) {
+            elements.achievementAlert.textContent = `Achievement Unlocked: ${achievementName} 🎉`;
+            elements.achievementAlert.classList.remove('d-none');
+            setTimeout(() => {
+                elements.achievementAlert.classList.add('d-none');
+            }, 3000);
+        }
+
+        setInterval(() => {
+            if (autoClickerCount > 0) {
+                addScore(autoClickerCount * autoSpeedLevel);
+                createFloatingBurger(
+                    elements.foodBtn.offsetLeft + Math.random() * elements.foodBtn.offsetWidth,
+                    elements.foodBtn.offsetTop + Math.random() * elements.foodBtn.offsetHeight
+                );
+            }
+        }, 1000);
+
+        function saveGame() {
+            const gameData = {
+                score,
+                multiplier,
+                multiplierCost,
+                autoClickerCount,
+                autoClickerCost,
+                autoSpeedLevel,
+                autoSpeedCost,
+                achievements
+            };
+            localStorage.setItem('minjiglesSimulator', JSON.stringify(gameData));
+            lastSave = Date.now();
+        }
+
+        function loadGame() {
+            const savedData = localStorage.getItem('minjiglesSimulator');
+            if (savedData) {
+                const gameData = JSON.parse(savedData);
+                score = gameData.score;
+                multiplier = gameData.multiplier;
+                multiplierCost = gameData.multiplierCost;
+                autoClickerCount = gameData.autoClickerCount;
+                autoClickerCost = gameData.autoClickerCost;
+                autoSpeedLevel = gameData.autoSpeedLevel || 1;
+                autoSpeedCost = gameData.autoSpeedCost || 100;
+                achievements = gameData.achievements;
+
+                elements.score.textContent = formatNumber(score);
+                elements.multiplier.textContent = multiplier;
+                elements.clickPower.textContent = multiplier;
+                elements.mps.textContent = formatNumber(autoClickerCount * autoSpeedLevel);
+                elements.multiplierUpgradeBtn.textContent = `Upgrade Click Power (Cost: ${formatNumber(multiplierCost)})`;
+                elements.autoClickerBtn.textContent = `Buy Auto Clicker (Cost: ${formatNumber(autoClickerCost)})`;
+                elements.autoSpeedBtn.textContent = `Upgrade Speed (Cost: ${formatNumber(autoSpeedCost)})`;
+                elements.autoCount.textContent = autoClickerCount;
+                elements.autoSpeedLevel.textContent = autoSpeedLevel;
+
+                checkRank();
+                updateRankProgress();
+                updateAutoClickerVisuals();
+            }
+        }
+
+        setInterval(saveGame, 30000);
+        window.onbeforeunload = saveGame;
+        loadGame();
+    </script>
+</body>
+</html>
