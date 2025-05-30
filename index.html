@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-16">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minjigles Simulator</title>
+    <title>Mingle my jingles!</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .food-img {
@@ -127,7 +127,7 @@
 </head>
 <body class="bg-dark text-light">
     <div class="container mt-5 text-center">
-        <h1 class="mb-4 text-warning">🍔 Big-Minjigles Simulator 🍔</h1>
+        <h1 class="mb-4 text-warning">🍔 Bingle Jingle Simulingle's 🍔</h1>
         
         <div class="stats-container mb-4">
             <h3>Rank: <span id="rank-name" class="text-info">Newbie Foodie</span></h3>
@@ -153,7 +153,7 @@
                     <div class="upgrade-card">
                         <h5 class="text-info">Click Power</h5>
                         <button id="multiplier-upgrade" class="btn btn-success mb-2 w-100">
-                            Upgrade Click Power (Cost: 10)
+                            Upgrade Power (Cost: 10)
                         </button>
                         <small class="text-muted">Current: <span id="click-power">1</span> per click</small>
                     </div>
@@ -210,9 +210,16 @@
         const achievements = [
             { name: "First Bite", requirement: 1, unlocked: false },
             { name: "Hungry for More", requirement: 100, unlocked: false },
-            { name: "Food Obsessed", requirement: 1000, unlocked: false },
+            { name: "Food Obeesed", requirement: 1000, unlocked: false },
             { name: "Automation Master", requirement: 5, unlocked: false, type: "autoClicker" },
-            { name: "Speed Demon", requirement: 5, unlocked: false, type: "autoSpeed" }
+            { name: "Speed Demon", requirement: 5, unlocked: false, type: "autoSpeed" },
+            { name: "Speed v8", requirement: 8, unlocked: false, type: "autoSpeed" },
+            { name: 'speed v12", requirement: 12, unlocked: false, type: "autosSpeed" },
+            { name: 'speed v16", requirement: 16, unlocked: false, type: "autosSpeed" },
+            { name: "LAZY 🦥, YOU ARE VERY USELESS AND LAZY!!!!!!", requirement: 1, unlocked: false, type: "autoClicker" },
+            { name: "mingled, and jingled 🦑", requirement: 1000, unlocked: false },
+            { name: "YOU BEAT MINGINGLES IN THE RANKING!!! 🎉🪅", requirement: 2000000, unlocked: false }
+            
         ];
 
         const elements = {
