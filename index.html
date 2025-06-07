@@ -280,6 +280,14 @@
             </div>
         </div>
 
+        <div id="food-selection-container" class="mt-4">
+            <h5 class="text-warning">Change Food</h5>
+            <button class="btn btn-secondary food-select-btn me-2" data-foodid="hamburger">Burger</button>
+            <button class="btn btn-secondary food-select-btn me-2" data-foodid="pizza">Pizza</button>
+            <button class="btn btn-secondary food-select-btn" data-foodid="donut">Donut</button>
+            <!-- Add more buttons as new items are created -->
+        </div>
+
         <div class="achievements mt-4">
             <div id="achievement-alert" class="alert alert-success d-none" role="alert">
                 Achievement Unlocked! 🎉
@@ -300,6 +308,8 @@
         let autoSpeedLevel = 1;
         let autoSpeedCost = 100;
         let lastSave = Date.now(); // For auto-save timing
+        let currentFoodItemId = 'hamburger'; // Default food item
+        let unlockedFoodIds = []; // For tracking selected foods for achievements
 
         // Game Configuration Data
         const ranks = [
@@ -350,19 +360,38 @@
             // New "Hidden" or Special Achievements (tracking logic to be added later)
             { name: "Just One More...", requirement: 666, unlocked: false, category: "special", type: "scorePrecision" },
             { name: "Click Frenzy", requirement: 10, unlocked: false, category: "special", type: "clicksInSec" },
-            { name: "Early Bird", requirement: null, unlocked: false, category: "special", type: "timeOfDay" }
+            { name: "Early Bird", requirement: null, unlocked: false, category: "special", type: "timeOfDay" },
+
+            // Achievements for new food items
+            { name: "Pizza Time!", requirementType: "foodSelected", foodId: "pizza", unlocked: false, category: "discovery" },
+            { name: "Donut Delight!", requirementType: "foodSelected", foodId: "donut", unlocked: false, category: "discovery" },
+            { name: "Food Connoisseur", requirementType: "allFoodsSelected", unlocked: false, category: "collection" }
         ];
 
         // Three.js Variables
-        let scene, camera, renderer, hamburgerModel, raycaster, mouse;
+        let scene, camera, renderer, currentFoodModel, raycaster, mouse; // Renamed hamburgerModel
         const floatingBurgers3D = []; // Array to store active 3D floating burgers
-        let isHovering = false; // For main hamburger hover state
-        const originalScale = new THREE.Vector3(0.5, 0.5, 0.5); // Initial scale of main hamburger
-        const hoverScale = new THREE.Vector3(0.55, 0.55, 0.55); // Scale on hover for main hamburger
+        let isHovering = false; // For main food item hover state
+        // Note: originalScale and hoverScale are now part of FoodItem defined in foodItems['hamburger']
 
         // Achievement Tracking Variables
         let clickTimestamps = []; // For "clicksInSec" achievement
 
+        // --- FOOD ITEM DEFINITIONS ---
+        class FoodItem {
+            constructor(id, name, modelGenerator, originalScale, hoverScale, clickScale) {
+                this.id = id;
+                this.name = name;
+                this.modelGenerator = modelGenerator;
+                this.originalScale = originalScale;
+                this.hoverScale = hoverScale;
+                this.clickScale = clickScale;
+                // Optional: this.baseClickValue = 1;
+                // Optional: this.unlockRequirement = 0;
+            }
+        }
+
+        const foodItems = {}; // Using an object for easy lookup by ID
         // --- UI ELEMENT REFERENCES ---
         const elements = {
             score: document.getElementById('score'),
@@ -403,15 +432,21 @@
             // Fog for depth perception
             scene.fog = new THREE.FogExp2(0x000000, 0.015);
 
-            // Create main interactive hamburger model
-            hamburgerModel = createHamburgerModel();
-            scene.add(hamburgerModel);
+            // Create main interactive food model based on currentFoodItemId
+            const currentFoodItem = foodItems[currentFoodItemId];
+            if (!currentFoodItem) {
+                console.error("Current food item not found:", currentFoodItemId);
+                return;
+            }
+            currentFoodModel = currentFoodItem.modelGenerator();
+            currentFoodModel.scale.copy(currentFoodItem.originalScale);
+            scene.add(currentFoodModel);
 
             // Create decorative background elements
             createBackgroundElements();
 
-            // Position the main hamburger within the designated container area
-            positionHamburger();
+            // Position the main food model within the designated container area
+            positionCurrentFoodModel();
 
             camera.position.z = 5; // Camera distance from origin
 
@@ -426,10 +461,10 @@
         }
 
         /**
-         * Creates the main 3D hamburger model.
+         * Generates the 3D model for a hamburger.
          * @returns {THREE.Group} The hamburger model.
          */
-        function createHamburgerModel() {
+        function generateHamburgerModel() {
             const group = new THREE.Group();
             const bunMaterial = new THREE.MeshStandardMaterial({ color: 0xDEA057, roughness: 0.6, metalness: 0.3 });
             const pattyMaterial = new THREE.MeshStandardMaterial({ color: 0x5C2E1A, roughness: 0.8, metalness: 0.2 });
@@ -456,21 +491,141 @@
             tomato.position.y = 0.4;
             group.add(tomato);
 
-            group.scale.copy(originalScale);
+            // group.scale.copy(originalScale); // Scale will be applied based on FoodItem definition
             return group;
         }
 
+        // Populate foodItems (after generateHamburgerModel is defined)
+        foodItems['hamburger'] = new FoodItem(
+            'hamburger',
+            'Classic Burger',
+            generateHamburgerModel,
+            new THREE.Vector3(0.5, 0.5, 0.5),    // originalScale
+            new THREE.Vector3(0.55, 0.55, 0.55), // hoverScale
+            new THREE.Vector3(0.4, 0.4, 0.4)  // clickScale (adjusted)
+        );
+
+        function generatePizzaModel() {
+            const group = new THREE.Group();
+            const crustMaterial = new THREE.MeshStandardMaterial({ color: 0xE0C08A, roughness: 0.8, metalness: 0.2 });
+            const sauceMaterial = new THREE.MeshStandardMaterial({ color: 0xBF3A30, roughness: 0.6, metalness: 0.1 });
+            const pepperoniMaterial = new THREE.MeshStandardMaterial({ color: 0xC83E4D, roughness: 0.7, metalness: 0.2 });
+
+            // Pizza slice shape (triangle from cylinder segment)
+            const pizzaSliceShape = new THREE.Shape();
+            const radius = 1.2;
+            const angle = Math.PI / 3; // 60 degree slice
+            pizzaSliceShape.moveTo(0, 0);
+            pizzaSliceShape.arc(0, 0, radius, -angle / 2, angle / 2, false);
+            pizzaSliceShape.lineTo(0, 0);
+
+            const extrudeSettings = { depth: 0.15, bevelEnabled: false };
+            const geometry = new THREE.ExtrudeGeometry(pizzaSliceShape, extrudeSettings);
+
+            const base = new THREE.Mesh(geometry, crustMaterial);
+            base.rotation.x = -Math.PI / 2; // Lay flat
+            group.add(base);
+
+            // Sauce (slightly smaller)
+            const sauceShape = new THREE.Shape();
+            sauceShape.moveTo(0, 0);
+            sauceShape.arc(0, 0, radius * 0.9, -angle/2, angle/2, false);
+            sauceShape.lineTo(0,0);
+            const sauceExtrudeSettings = { depth: 0.05, bevelEnabled: false };
+            const sauceGeometry = new THREE.ExtrudeGeometry(sauceShape, sauceExtrudeSettings);
+            const sauce = new THREE.Mesh(sauceGeometry, sauceMaterial);
+            sauce.rotation.x = -Math.PI / 2;
+            sauce.position.y = 0.08; // Slightly above crust
+            group.add(sauce);
+
+            // Pepperonis
+            const pepperoniRadius = 0.15;
+            const pepperoniGeometry = new THREE.CylinderGeometry(pepperoniRadius, pepperoniRadius, 0.03, 16);
+            for (let i = 0; i < 5; i++) {
+                const pepperoni = new THREE.Mesh(pepperoniGeometry, pepperoniMaterial);
+                // Randomly place on the slice area
+                const r = Math.random() * radius * 0.7;
+                const a = (Math.random() - 0.5) * angle * 0.9;
+                pepperoni.position.set(r * Math.cos(a), 0.10, r * Math.sin(a)); // y is height on slice
+                group.add(pepperoni);
+            }
+            group.rotation.y = -Math.PI / 6; // Orient tip forward
+            return group;
+        }
+
+        foodItems['pizza'] = new FoodItem(
+            'pizza',
+            'Pepperoni Slice',
+            generatePizzaModel,
+            new THREE.Vector3(0.6, 0.6, 0.6),    // originalScale
+            new THREE.Vector3(0.65, 0.65, 0.65), // hoverScale
+            new THREE.Vector3(0.5, 0.5, 0.5)  // clickScale (adjusted)
+        );
+
+        function generateDonutModel() {
+            const group = new THREE.Group();
+            const donutMaterial = new THREE.MeshStandardMaterial({ color: 0xE6BF83, roughness: 0.7, metalness: 0.1 });
+            const icingMaterial = new THREE.MeshStandardMaterial({ color: 0xFF69B4, roughness: 0.5, metalness: 0.2 }); // Pink icing
+            const sprinkleColors = [0xFFFFFF, 0xADD8E6, 0x90EE90, 0xFFD700, 0xFFA07A]; // White, light blue, light green, gold, light salmon
+
+            const torusRadius = 0.7;
+            const tubeRadius = 0.3;
+            const donutGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, 16, 32);
+            const donut = new THREE.Mesh(donutGeometry, donutMaterial);
+            donut.rotation.x = Math.PI / 2; // Lay flat
+            group.add(donut);
+
+            const icingGeometry = new THREE.TorusGeometry(torusRadius * 1.02, tubeRadius * 0.8, 16, 32, Math.PI); // Half a torus for icing on top
+            const icing = new THREE.Mesh(icingGeometry, icingMaterial);
+            icing.rotation.x = Math.PI/2; // Align with donut
+            icing.position.y = tubeRadius * 0.1; // Slightly above donut
+            group.add(icing);
+
+            // Sprinkles
+            const sprinkleGeometry = new THREE.BoxGeometry(0.05, 0.15, 0.05);
+            for (let i = 0; i < 30; i++) {
+                const sprinkleMaterial = new THREE.MeshStandardMaterial({ color: sprinkleColors[Math.floor(Math.random() * sprinkleColors.length)], roughness: 0.8 });
+                const sprinkle = new THREE.Mesh(sprinkleGeometry, sprinkleMaterial);
+                const angle = Math.random() * Math.PI; // Place on top half
+                const r = torusRadius + (Math.random() - 0.5) * tubeRadius * 1.2; // Distribute around the torus shape
+                sprinkle.position.set(
+                    Math.cos(angle) * r,
+                    tubeRadius * 0.7 + (Math.random() * 0.1), // On top of icing
+                    Math.sin(angle) * r
+                );
+                sprinkle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                group.add(sprinkle);
+            }
+            return group;
+        }
+
+        foodItems['donut'] = new FoodItem(
+            'donut',
+            'Sprinkled Donut',
+            generateDonutModel,
+            new THREE.Vector3(0.7, 0.7, 0.7),    // originalScale
+            new THREE.Vector3(0.75, 0.75, 0.75), // hoverScale
+            new THREE.Vector3(0.6, 0.6, 0.6)  // clickScale (adjusted)
+        );
+        // Add more food items here later
+
         /**
-         * Creates a smaller version of the hamburger model for floating animations.
-         * @returns {THREE.Group | null} The mini hamburger model or null if main model doesn't exist.
+         * Creates a smaller version of the current food model for floating animations.
+         * @returns {THREE.Group | null} The mini food model or null if main model doesn't exist.
          */
-        function createMiniHamburgerModel() {
-            if (!hamburgerModel) return null;
+        function createMiniFoodModel() {
+            if (!currentFoodModel) return null;
+            const currentFoodItem = foodItems[currentFoodItemId];
+            if (!currentFoodItem) {
+                console.error("Current food item not found for mini model:", currentFoodItemId);
+                return null;
+            }
 
-            const miniBurger = hamburgerModel.clone(true);
-            miniBurger.scale.set(0.1, 0.1, 0.1);
+            const miniModel = currentFoodItem.modelGenerator(); // Generate a fresh model
+            // Define a miniScale, perhaps on FoodItem or globally for mini particles
+            miniModel.scale.set(0.1, 0.1, 0.1);
 
-            miniBurger.traverse(child => {
+            miniModel.traverse(child => { // Changed miniBurger to miniModel
                 if (child.isMesh) {
                     if (Array.isArray(child.material)) {
                         child.material = child.material.map(m => m.clone());
@@ -480,18 +635,18 @@
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(mat => {
                         mat.transparent = true;
-                        mat.opacity = 1.0;
+                        mat.opacity = 1.0; // Initial opacity for mini models
                     });
                 }
             });
-            return miniBurger;
+            return miniModel; // Changed miniBurger to miniModel
         }
 
         /**
-         * Positions the main hamburger model in the center of the 'food-container' div.
+         * Positions the main food model in the center of the 'food-container' div.
          */
-        function positionHamburger() {
-            if (!hamburgerModel || !camera) return;
+        function positionCurrentFoodModel() {
+            if (!currentFoodModel || !camera) return;
             const foodContainer = document.getElementById('food-container');
             if (!foodContainer) return;
 
@@ -506,8 +661,8 @@
             vec.sub(camera.position).normalize();
             const distance = -camera.position.z / vec.z;
             pos.copy(camera.position).add(vec.multiplyScalar(distance));
-            hamburgerModel.position.copy(pos);
-            hamburgerModel.position.y -= 0.5; // Fine-tune vertical position
+            currentFoodModel.position.copy(pos);
+            currentFoodModel.position.y -= 0.5; // Fine-tune vertical position
         }
 
         /**
@@ -551,7 +706,7 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            positionHamburger(); // Reposition hamburger on resize
+            positionCurrentFoodModel(); // Reposition food model on resize
         }
 
         /**
@@ -565,14 +720,19 @@
         }
 
         /**
-         * Handles click events on the Three.js canvas, primarily for interacting with the main hamburger.
+         * Handles click events on the Three.js canvas, primarily for interacting with the main food item.
          * @param {MouseEvent} event The mouse event.
          */
         function onThreeJSClick(event) { // Renamed from onClick
-            if (!hamburgerModel || !raycaster || !camera || !scene) return;
+            if (!currentFoodModel || !raycaster || !camera || !scene) return;
+            const currentFoodItem = foodItems[currentFoodItemId];
+            if (!currentFoodItem) {
+                console.error("Food item not found on click:", currentFoodItemId);
+                return;
+            }
 
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(hamburgerModel, true);
+            const intersects = raycaster.intersectObject(currentFoodModel, true);
 
             if (intersects.length > 0) {
                 addScore(multiplier); // addScore calls checkAchievements()
@@ -583,19 +743,26 @@
                 clickTimestamps = clickTimestamps.filter(timestamp => now - timestamp < 1000);
                 checkAchievements();
 
-                // Create a floating 3D burger effect from the click position
-                const foodContainerRect = elements.foodContainer.getBoundingClientRect();
-                createFloatingBurger(
+                // Create a floating 3D food particle effect from the click position
+                createFloatingFoodParticle(
                     event.clientX, // Use direct mouse click coords for visual origin
                     event.clientY
                 );
 
-                // Click animation for the main hamburger
-                const clickScaleDown = new THREE.Vector3(0.45, 0.45, 0.45);
-                hamburgerModel.scale.copy(clickScaleDown);
+                // Click animation for the main food item
+                const originalRotationX = currentFoodModel.rotation.x;
+                const originalPositionY = currentFoodModel.position.y;
+
+                currentFoodModel.scale.copy(currentFoodItem.clickScale);
+                currentFoodModel.rotation.x -= 0.2; // Quick tilt
+                currentFoodModel.position.y -= 0.05; // Quick dip
+
                 setTimeout(() => {
-                    hamburgerModel.scale.copy(isHovering ? hoverScale : originalScale);
-                }, 100);
+                    currentFoodModel.scale.copy(isHovering ? currentFoodItem.hoverScale : currentFoodItem.originalScale);
+                    currentFoodModel.rotation.x = originalRotationX; // Return to original tilt
+                    currentFoodModel.position.y = originalPositionY; // Return to original dip
+                    // The continuous rotation on Y-axis is handled by animateThreeJS and should not be reset here.
+                }, 75); // Reduced timeout for snappier feel
             }
         }
 
@@ -606,18 +773,23 @@
             requestAnimationFrame(animateThreeJS);
             const delta = 0.016; // Approximate delta time (assuming ~60fps)
 
-            // Main hamburger hover effect
-            if (raycaster && hamburgerModel && scene && camera && renderer) {
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObject(hamburgerModel, true);
-                if (intersects.length > 0) {
-                    if (!isHovering) { isHovering = true; hamburgerModel.scale.copy(hoverScale); }
+            // Main food item hover effect
+            if (raycaster && currentFoodModel && scene && camera && renderer) {
+                const currentFoodItem = foodItems[currentFoodItemId];
+                if (currentFoodItem) {
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObject(currentFoodModel, true);
+                    if (intersects.length > 0) {
+                        if (!isHovering) { isHovering = true; currentFoodModel.scale.copy(currentFoodItem.hoverScale); }
+                    } else {
+                        if (isHovering) { isHovering = false; currentFoodModel.scale.copy(currentFoodItem.originalScale); }
+                    }
                 } else {
-                    if (isHovering) { isHovering = false; hamburgerModel.scale.copy(originalScale); }
+                     if (isHovering) { isHovering = false; } // Ensure isHovering is reset if item is missing
                 }
             }
 
-            if (hamburgerModel) hamburgerModel.rotation.y += 0.005; // Gentle continuous rotation
+            if (currentFoodModel) currentFoodModel.rotation.y += 0.005; // Gentle continuous rotation
 
             // Animate background elements
             scene.traverse(child => {
@@ -687,29 +859,34 @@
         }
 
         /**
-         * Creates a 3D floating burger animation starting from screen coordinates.
+         * Creates a 3D floating food particle animation starting from screen coordinates.
          * @param {number} screenX The X screen coordinate.
          * @param {number} screenY The Y screen coordinate.
          */
-        function createFloatingBurger(screenX, screenY) {
-            const miniBurgerMesh = createMiniHamburgerModel();
-            if (!miniBurgerMesh || !scene || !camera || !hamburgerModel) return;
+        const loggedFloatingParticles = {}; // Helper to log once per food type for createFloatingFoodParticle
+        function createFloatingFoodParticle(screenX, screenY) {
+            if (!loggedFloatingParticles[currentFoodItemId]) {
+                console.log(`Creating floating particle for: ${currentFoodItemId}`);
+                loggedFloatingParticles[currentFoodItemId] = true;
+            }
+            const miniFoodMesh = createMiniFoodModel();
+            if (!miniFoodMesh || !scene || !camera || !currentFoodModel) return;
 
             const startPos = new THREE.Vector3();
-            // Convert screen click to world coordinates near the main hamburger's surface
+            // Convert screen click to world coordinates near the main food model's surface
             const vec = new THREE.Vector3( (screenX / window.innerWidth) * 2 - 1, -(screenY / window.innerHeight) * 2 + 1, 0.5);
             vec.unproject(camera);
-            // Place it slightly in front of the camera, then move towards the unprojected point at an estimated depth of the hamburger
+            // Place it slightly in front of the camera, then move towards the unprojected point at an estimated depth of the food model
             const dir = vec.sub(camera.position).normalize();
-            const distance = hamburgerModel.position.distanceTo(camera.position) * 0.8; // Estimate distance to hamburger surface from camera
+            const distance = currentFoodModel.position.distanceTo(camera.position) * 0.8; // Estimate distance to food model surface from camera
             startPos.copy(camera.position).add(dir.multiplyScalar(distance));
 
-            miniBurgerMesh.position.copy(startPos);
-            scene.add(miniBurgerMesh);
+            miniFoodMesh.position.copy(startPos);
+            scene.add(miniFoodMesh);
 
             const initialLifeTime = 1.0 + Math.random() * 0.5;
             floatingBurgers3D.push({
-                mesh: miniBurgerMesh,
+                mesh: miniFoodMesh,
                 velocityX: (Math.random() - 0.5) * 2.5,
                 velocityY: 2.5 + Math.random() * 1.5,
                 rotationSpeed: (Math.random() - 0.5) * 6,
@@ -791,6 +968,7 @@
             achievements.forEach(achievement => {
                 if (!achievement.unlocked) {
                     let unlockedThisCheck = false;
+                    // Standard achievement types
                     if (achievement.type === "autoClicker" && autoClickerCount >= achievement.requirement) unlockedThisCheck = true;
                     else if (achievement.type === "autoSpeed" && autoSpeedLevel >= achievement.requirement) unlockedThisCheck = true;
                     else if (achievement.type === "clickPower" && multiplier >= achievement.requirement) unlockedThisCheck = true;
@@ -799,8 +977,17 @@
                     else if (achievement.type === "timeOfDay") {
                         const currentHour = new Date().getHours();
                         if (currentHour >= 5 && currentHour < 7) unlockedThisCheck = true;
-                    } else if ((!achievement.type || achievement.category === "milestone") && score >= achievement.requirement && achievement.requirement !== null) {
+                    } else if ((!achievement.type || achievement.category === "milestone") && score >= achievement.requirement && achievement.requirement !== null && !achievement.requirementType) {
                         unlockedThisCheck = true;
+                    }
+                    // New achievement types
+                    else if (achievement.requirementType === "foodSelected" && currentFoodItemId === achievement.foodId) {
+                        unlockedThisCheck = true;
+                    } else if (achievement.requirementType === "allFoodsSelected") {
+                        const totalFoodItemTypes = Object.keys(foodItems).length;
+                        if (unlockedFoodIds.length >= totalFoodItemTypes) {
+                            unlockedThisCheck = true;
+                        }
                     }
 
                     if (unlockedThisCheck) {
@@ -816,6 +1003,7 @@
          * @param {string} achievementName The name of the achievement to display.
          */
         function showAchievement(achievementName) {
+            console.log(`Achievement Unlocked: ${achievementName}`);
             const alertEl = elements.achievementAlert;
             // The icon '🏆' is added via CSS ::before pseudo-element.
             // This updates the text node part of the alert.
@@ -844,7 +1032,9 @@
                 score, multiplier, multiplierCost,
                 autoClickerCount, autoClickerCost,
                 autoSpeedLevel, autoSpeedCost,
-                achievements // Save the whole achievements array (including unlocked status)
+                achievements, // Save the whole achievements array (including unlocked status)
+                currentFoodItemId, // Save the current food item
+                unlockedFoodIds // Save the list of unlocked food IDs
             };
             localStorage.setItem('minjiglesSimulator', JSON.stringify(gameData));
             lastSave = Date.now();
@@ -865,6 +1055,8 @@
                 autoClickerCost = gameData.autoClickerCost || 50;
                 autoSpeedLevel = gameData.autoSpeedLevel || 1;
                 autoSpeedCost = gameData.autoSpeedCost || 100;
+                currentFoodItemId = gameData.currentFoodItemId || 'hamburger'; // Load current food item, default to hamburger
+                unlockedFoodIds = gameData.unlockedFoodIds || []; // Load unlocked food IDs
 
                 // Merge loaded achievements with current ones to preserve new definitions
                 // while restoring unlocked status
@@ -962,29 +1154,297 @@
         // Save game when the window is about to be unloaded
         window.onbeforeunload = saveGame;
 
+        // Event listener for food selection buttons
+        document.querySelectorAll('.food-select-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const newFoodId = button.getAttribute('data-foodid');
+                if (newFoodId === currentFoodItemId) return; // No change if already selected
+
+                // Dispose and remove old model
+                if (currentFoodModel) {
+                    currentFoodModel.traverse(child => {
+                        if (child.isMesh) {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(m => m.dispose());
+                                } else {
+                                    child.material.dispose();
+                                }
+                            }
+                        }
+                    });
+                    scene.remove(currentFoodModel);
+                }
+
+                currentFoodItemId = newFoodId;
+                const newFoodItem = foodItems[currentFoodItemId];
+
+                if (!newFoodItem) {
+                    console.error("Selected food item not found:", currentFoodItemId);
+                    // Optionally revert to a default or handle error
+                    return;
+                }
+
+                // Create and add new model
+                currentFoodModel = newFoodItem.modelGenerator();
+                currentFoodModel.scale.copy(newFoodItem.originalScale);
+                scene.add(currentFoodModel);
+                positionCurrentFoodModel();
+                isHovering = false; // Reset hover state
+
+                // Update button active states
+                document.querySelectorAll('.food-select-btn').forEach(btn => {
+                    btn.classList.remove('btn-primary'); // Assuming primary is active
+                    btn.classList.add('btn-secondary');
+                });
+                button.classList.remove('btn-secondary');
+                button.classList.add('btn-primary');
+
+                // Track unlocked food items for achievements
+                if (!unlockedFoodIds.includes(currentFoodItemId)) {
+                    unlockedFoodIds.push(currentFoodItemId);
+                }
+                console.log(`Switched to food: ${currentFoodItemId}`);
+                console.log(`Unlocked food items: ${unlockedFoodIds.join(', ')}`);
+                checkAchievements(); // Check achievements after changing food and updating unlockedFoodIds
+                saveGame();
+            });
+        });
+
         // Auto-clicker interval (adds score every second based on auto-clickers owned and their speed)
         setInterval(() => {
-            if (autoClickerCount > 0 && hamburgerModel && camera && scene) {
+            if (autoClickerCount > 0 && currentFoodModel && camera && scene) {
                 addScore(autoClickerCount * autoSpeedLevel); // addScore calls checkAchievements
 
-                // Create a floating 3D burger originating from the main hamburger for auto-clicks
+                // Create a floating 3D food particle originating from the main food model for auto-clicks
                 const screenPosVec = new THREE.Vector3();
-                hamburgerModel.getWorldPosition(screenPosVec);
+                currentFoodModel.getWorldPosition(screenPosVec);
                 screenPosVec.project(camera);
                 const screenX = (screenPosVec.x * 0.5 + 0.5) * window.innerWidth;
                 const screenY = (-screenPosVec.y * 0.5 + 0.5) * window.innerHeight;
-                const randomOffsetX = (Math.random() - 0.5) * (hamburgerModel.scale.x * 100);
-                const randomOffsetY = (Math.random() - 0.5) * (hamburgerModel.scale.y * 100);
-                createFloatingBurger(screenX + randomOffsetX, screenY + randomOffsetY);
+                const currentFoodItem = foodItems[currentFoodItemId];
+                const modelScaleX = currentFoodItem ? currentFoodItem.originalScale.x : 0.5; // fallback scale
+                const modelScaleY = currentFoodItem ? currentFoodItem.originalScale.y : 0.5; // fallback scale
+                const randomOffsetX = (Math.random() - 0.5) * (modelScaleX * 100);
+                const randomOffsetY = (Math.random() - 0.5) * (modelScaleY * 100);
+                createFloatingFoodParticle(screenX + randomOffsetX, screenY + randomOffsetY);
             }
         }, 1000);
 
         // Initialize the game
         loadGame();    // Load saved state first
         initThreeJS(); // Then initialize Three.js
+
+        // After initThreeJS, update food selection button appearance
+        const activeButton = document.querySelector(`.food-select-btn[data-foodid="${currentFoodItemId}"]`);
+        if (activeButton) {
+            document.querySelectorAll('.food-select-btn').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            });
+            activeButton.classList.remove('btn-secondary');
+            activeButton.classList.add('btn-primary');
+        }
+
         animateThreeJS(); // Start the animation loop
         updateRankProgress(); // Initial rank progress update
         checkAchievements(); // Check for any initially met time-based achievements etc.
+
+        function runAutomatedTests() {
+            console.log("--- Starting Automated Tests ---");
+
+            // Helper to simulate food selection click logic directly
+            // This avoids issues with DOM elements not being fully ready or event propagation complexities in a test script
+            function selectFoodItemProgrammatically(foodId) {
+                console.log(`\n[TEST] Programmatically selecting: ${foodId}`);
+                if (foodId === currentFoodItemId) {
+                    console.log(`[TEST] Food ${foodId} is already selected.`);
+                    return;
+                }
+
+                if (currentFoodModel) {
+                    currentFoodModel.traverse(child => {
+                        if (child.isMesh) {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(m => m.dispose());
+                                } else {
+                                    child.material.dispose();
+                                }
+                            }
+                        }
+                    });
+                    scene.remove(currentFoodModel);
+                }
+
+                currentFoodItemId = foodId;
+                const newFoodItem = foodItems[currentFoodItemId];
+
+                if (!newFoodItem) {
+                    console.error(`[TEST_ERROR] Selected food item not found in foodItems: ${currentFoodItemId}`);
+                    return;
+                }
+
+                currentFoodModel = newFoodItem.modelGenerator();
+                currentFoodModel.scale.copy(newFoodItem.originalScale);
+                scene.add(currentFoodModel);
+                positionCurrentFoodModel();
+                isHovering = false;
+
+                document.querySelectorAll('.food-select-btn').forEach(btn => {
+                    btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary');
+                });
+                const activeButton = document.querySelector(`.food-select-btn[data-foodid="${currentFoodItemId}"]`);
+                if (activeButton) {
+                    activeButton.classList.remove('btn-secondary'); activeButton.classList.add('btn-primary');
+                }
+
+                if (!unlockedFoodIds.includes(currentFoodItemId)) {
+                    unlockedFoodIds.push(currentFoodItemId);
+                }
+                // The actual game logs these, so we don't need to repeat here if we call checkAchievements
+                // console.log(`Switched to food: ${currentFoodItemId}`);
+                // console.log(`Unlocked food items: ${unlockedFoodIds.join(', ')}`);
+                checkAchievements();
+                // saveGame(); // saveGame will be tested separately
+            }
+
+            // Helper to get achievement status
+            function getAchievementStatus(name) {
+                const ach = achievements.find(a => a.name === name);
+                return ach ? ach.unlocked : 'Not Found';
+            }
+
+            // --- Pre-Test State Reset ---
+            console.log("\n--- Pre-Test State Reset ---");
+            // Reset achievements that will be tested
+            achievements.forEach(ach => {
+                if (ach.name === "Pizza Time!" || ach.name === "Donut Delight!" || ach.name === "Food Connoisseur") {
+                    ach.unlocked = false;
+                }
+            });
+            unlockedFoodIds = []; // Clear unlocked food IDs
+            // Set a known starting food item
+            selectFoodItemProgrammatically('hamburger'); // Start with hamburger, this will add 'hamburger' to unlockedFoodIds
+             // Manually clear the loggedFloatingParticles for fresh particle logging
+            for (const key in loggedFloatingParticles) { delete loggedFloatingParticles[key]; }
+
+
+            // 1. Test Food Switching and Model Updates
+            console.log("\n--- Test: Food Switching & Model Updates ---");
+            console.log(`Initial currentFoodItemId: ${currentFoodItemId}, Model Name: ${foodItems[currentFoodItemId] ? foodItems[currentFoodItemId].name : 'N/A'}`);
+
+            selectFoodItemProgrammatically('pizza');
+            console.log(`After switching to Pizza -> currentFoodItemId: ${currentFoodItemId}, Model Name: ${foodItems[currentFoodItemId] ? foodItems[currentFoodItemId].name : 'N/A'}`);
+            if (currentFoodItemId !== 'pizza') console.error("[FAIL] currentFoodItemId not updated to pizza.");
+            if (!unlockedFoodIds.includes('pizza')) console.error("[FAIL] unlockedFoodIds does not include pizza.");
+
+            selectFoodItemProgrammatically('donut');
+            console.log(`After switching to Donut -> currentFoodItemId: ${currentFoodItemId}, Model Name: ${foodItems[currentFoodItemId] ? foodItems[currentFoodItemId].name : 'N/A'}`);
+            if (currentFoodItemId !== 'donut') console.error("[FAIL] currentFoodItemId not updated to donut.");
+            if (!unlockedFoodIds.includes('donut')) console.error("[FAIL] unlockedFoodIds does not include donut.");
+
+            // Note: hamburger was already selected during pre-test reset
+            console.log(`Current unlockedFoodIds before checking 'Food Connoisseur': ${unlockedFoodIds.join(', ')}`);
+
+
+            // 2. Test Achievement Unlocking Logic
+            console.log("\n--- Test: Achievement Unlocking ---");
+            // Achievements are checked by selectFoodItemProgrammatically via checkAchievements()
+            console.log(`'Pizza Time!' unlocked: ${getAchievementStatus("Pizza Time!")}`);
+            if (!getAchievementStatus("Pizza Time!")) console.error("[FAIL] 'Pizza Time!' should be unlocked.");
+
+            console.log(`'Donut Delight!' unlocked: ${getAchievementStatus("Donut Delight!")}`);
+            if (!getAchievementStatus("Donut Delight!")) console.error("[FAIL] 'Donut Delight!' should be unlocked.");
+
+            console.log(`'Food Connoisseur' unlocked: ${getAchievementStatus("Food Connoisseur")}`);
+            // Check if all foods (hamburger, pizza, donut) are in unlockedFoodIds
+            const allFoods = ['hamburger', 'pizza', 'donut'];
+            const allPresent = allFoods.every(food => unlockedFoodIds.includes(food));
+            if (allPresent) {
+                if (!getAchievementStatus("Food Connoisseur")) console.error("[FAIL] 'Food Connoisseur' should be unlocked as all foods were selected.");
+            } else {
+                 console.warn("[INFO] 'Food Connoisseur' not unlocked, not all foods were registered in unlockedFoodIds. Current: " + unlockedFoodIds.join(','));
+            }
+
+
+            // 3. Test Save/Load for Selected Food & UI Button State
+            console.log("\n--- Test: Save/Load for Selected Food & UI ---");
+            // currentFoodItemId is 'donut' from previous step. unlockedFoodIds contains hamburger, pizza, donut.
+            saveGame(); // Save with 'donut' and all three in unlockedFoodIds
+            console.log("Game saved with currentFoodItemId = donut, unlockedFoodIds = " + unlockedFoodIds.join(', '));
+
+            // Simulate a reset before load
+            let originalFoodItemIdBeforeLoad = currentFoodItemId;
+            currentFoodItemId = 'hamburger'; // Reset to default
+            unlockedFoodIds = []; // Clear unlockedFoodIds to ensure it loads correctly
+            console.log("Simulated reset: currentFoodItemId = hamburger, unlockedFoodIds = []");
+
+            loadGame(); // This should load 'donut' and the full unlockedFoodIds
+            console.log(`After loadGame(), currentFoodItemId: ${currentFoodItemId}`);
+            console.log(`After loadGame(), unlockedFoodIds: ${unlockedFoodIds.join(', ')}`);
+
+            if (currentFoodItemId !== 'donut') console.error(`[FAIL] currentFoodItemId not loaded as 'donut'. Loaded: ${currentFoodItemId}`);
+            if (unlockedFoodIds.length !== 3 || !unlockedFoodIds.includes('donut') || !unlockedFoodIds.includes('pizza') || !unlockedFoodIds.includes('hamburger')) {
+                console.error(`[FAIL] unlockedFoodIds not loaded correctly. Loaded: ${unlockedFoodIds.join(', ')}`);
+            }
+
+            // Verify UI button for 'donut' is active (after a full init cycle post-load)
+            // This simulates the main game flow's initialization for UI updates
+            if (currentFoodModel) {
+                currentFoodModel.traverse(child => {
+                    if (child.isMesh) {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) { (Array.isArray(child.material) ? child.material : [child.material]).forEach(m => m.dispose()); }
+                    }
+                });
+                scene.remove(currentFoodModel);
+            }
+            // Re-initialize model based on loaded currentFoodItemId
+            const foodItemAfterLoad = foodItems[currentFoodItemId];
+            if (foodItemAfterLoad) {
+                currentFoodModel = foodItemAfterLoad.modelGenerator();
+                currentFoodModel.scale.copy(foodItemAfterLoad.originalScale);
+                scene.add(currentFoodModel);
+                positionCurrentFoodModel();
+                isHovering = false; // Reset hover state
+
+                // Update button active states based on loaded currentFoodItemId
+                document.querySelectorAll('.food-select-btn').forEach(btn => {
+                    btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary');
+                });
+                const activeButtonAfterLoad = document.querySelector(`.food-select-btn[data-foodid="${currentFoodItemId}"]`);
+                if (activeButtonAfterLoad) {
+                    activeButtonAfterLoad.classList.remove('btn-secondary'); activeButtonAfterLoad.classList.add('btn-primary');
+                    console.log(`UI Button for ${currentFoodItemId} should now be active.`);
+                    if (!activeButtonAfterLoad.classList.contains('btn-primary')) {
+                         console.error(`[FAIL] UI button for ${currentFoodItemId} is not active after load and UI update.`);
+                    }
+                } else {
+                     console.error(`[FAIL] Could not find button for ${currentFoodItemId} to check active state.`);
+                }
+            } else {
+                console.error("[TEST_ERROR] Could not re-initialize model for UI button check as foodItemAfterLoad is null for ID: " + currentFoodItemId);
+            }
+
+            // Simulate one click to check floating particle logging for the loaded item
+            console.log("\n--- Test: Floating Particle Logging for Loaded Item ---");
+            if (currentFoodModel) { // Check if model exists
+                 // Manually clear the loggedFloatingParticles for this specific test
+                for (const key in loggedFloatingParticles) { delete loggedFloatingParticles[key]; }
+                createFloatingFoodParticle(window.innerWidth / 2, window.innerHeight / 2); // Simulate a click effect
+            } else {
+                console.error("[TEST_ERROR] No currentFoodModel to test floating particle generation.");
+            }
+
+
+            console.log("\n--- Automated Tests Finished ---");
+        }
+
+        // Call the test function after all initializations
+        runAutomatedTests();
 
     </script>
 </body>
